@@ -3,10 +3,12 @@ package tree
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
+
+	"github.com/jn-lp/se-exam/pkg/tools"
 )
 
 type BinaryTree struct {
@@ -21,14 +23,13 @@ func New(r io.Reader) (t BinaryTree, e error) {
 	return
 }
 
-func (t *BinaryTree) Read(p []byte) (n int, err error) {
-	data, err := json.Marshal(t)
-	return bytes.NewReader(data).Read(p)
+func (t *BinaryTree) Encode() ([]byte, error) {
+	return json.Marshal(t)
 }
 
-func (t *BinaryTree) Encode() (p []byte) {
-	data, _ := json.Marshal(t)
-	return data
+func (t *BinaryTree) Read(p []byte) (n int, err error) {
+	data, err := t.Encode()
+	return bytes.NewReader(data).Read(p)
 }
 
 func (t *BinaryTree) InverseBranches() {
@@ -54,7 +55,8 @@ func HTTPHandler() http.HandlerFunc {
 func handleTreeSave(r *http.Request, rw http.ResponseWriter) {
 	t, err := New(r.Body)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Cannot decode tree from that reader,", err)
+		log.Println("Cannot decode tree from that reader,", err)
+		tools.WriteJsonBadRequest(rw, "Cannot decode tree from that reader")
 		return
 	}
 
@@ -62,10 +64,17 @@ func handleTreeSave(r *http.Request, rw http.ResponseWriter) {
 
 	output, err := os.Create("outputTree.json")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Unable to open file:", err)
+		log.Println("Unable to open file:", err)
+		tools.WriteJsonInternalError(rw)
 		return
 	}
 	defer output.Close()
 
-	output.Write(t.Encode())
+	bytes, err := t.Encode()
+	if err != nil {
+		log.Println("Unable to encode tree struct:", err)
+		tools.WriteJsonInternalError(rw)
+		return
+	}
+	output.Write(bytes)
 }
